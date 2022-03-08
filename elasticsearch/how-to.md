@@ -53,41 +53,41 @@
           ⑩ 汇总历史数据
         
 ## 6 调整搜索速度
-   ① 为文件系统缓存提供内存 ，确保一半的可用内存进入文件系统缓存，这个是头号性能因素
+   1) 为文件系统缓存提供内存 ，确保一半的可用内存进入文件系统缓存，这个是头号性能因素
    
-   ② 使用更快的硬件
+   2)使用更快的硬件
    
-   ③ 文档建模：避免连接，嵌套会使查询慢几倍，父子关系会慢数百倍，如果可以通过非规范化文档来回答形同问题而无需连接，会显著加速
+   3)文档建模：避免连接，嵌套会使查询慢几倍，父子关系会慢数百倍，如果可以通过非规范化文档来回答形同问题而无需连接，会显著加速
    
-   ④搜索尽可能少的字段：query_string 和multi_match 查询越多，速度越慢，提高多字段的搜索速度的常用技术是将值复制到单个字段中，然后搜索是使用此字段  可以通过mapping中的 copy_to 执行无需更改文档的源
+   4)搜索尽可能少的字段：query_string 和multi_match 查询越多，速度越慢，提高多字段的搜索速度的常用技术是将值复制到单个字段中，然后搜索是使用此字段  可以通过mapping中的 copy_to 执行无需更改文档的源
  ![image.png](https://upload-images.jianshu.io/upload_images/15294843-68d5cf9d24ac52c7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
  
-   ⑤索引前数据
+   5)索引前数据
    
-   ⑥将映射标识符视为keyword
+   6)将映射标识符视为keyword
    
 ![image.png](https://upload-images.jianshu.io/upload_images/15294843-a1dbe52f1bdb00bc.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
-   ⑦避免使用脚本
+   7)避免使用脚本
    
-   ⑧搜索输入日期（比如精确到分钟或者小时）
+   8)搜索输入日期（比如精确到分钟或者小时）
    
    
-   ⑨强制合并只读索引
+   9)强制合并只读索引
    
-   ⑩预热系统缓存 index.store.preload  重启会将文件系统缓存清空
+   10)预热系统缓存 index.store.preload  重启会将文件系统缓存清空
    
-   11 索引排序加快连词速度
+   11) 索引排序加快连词速度
    
-   12 用于优化缓存利用率 preference，参考3
+   12) 用于优化缓存利用率 preference，参考3
    
-   13 适当调整副本数
+   13) 适当调整副本数
    
-   14  使用更快的短语查询index_phrases适用于文本字段mapping
+   14)  使用更快的短语查询index_phrases适用于文本字段mapping
    
-   15 使用更快对的'前缀查询'  index_prefixes 文本字段
+   15) 使用更快对的'前缀查询'  index_prefixes 文本字段
    
-   16 用于加速过滤 contant_keyword
+   16) 用于加速过滤 contant_keyword
    
 ## 7.调整分片大小
 分片是为了防止硬件故障并且增加容量，单分片最多20亿文档
