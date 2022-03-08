@@ -95,17 +95,17 @@
    
    10)预热系统缓存 index.store.preload  重启会将文件系统缓存清空
    
-   11) 索引排序加快连词速度
+   11)索引排序加快连词速度
    
-   12) 用于优化缓存利用率 preference，参考3
+   12)用于优化缓存利用率 preference，参考3
    
-   13) 适当调整副本数
+   13)适当调整副本数
    
-   14)  使用更快的短语查询index_phrases适用于文本字段mapping
+   14)使用更快的短语查询index_phrases适用于文本字段mapping
    
-   15) 使用更快对的'前缀查询'  index_prefixes 文本字段
+   15)使用更快对的'前缀查询'  index_prefixes 文本字段
    
-   16) 用于加速过滤 contant_keyword
+   16)用于加速过滤 contant_keyword
    
 ## 6.调整分片大小
 分片是为了防止硬件故障并且增加容量，单分片最多20亿文档
