@@ -16,7 +16,8 @@ Redis是互联网技术领域使用最为广泛的存储中间件，因超高的
 
 因此我试图总结出Redis的知识图谱，也称为脑图，如下图所示，可能知识点不是很全，后续会不断更新补充。
 
-https://upload-images.jianshu.io/upload_images/15294843-edd66a1c9177cc7d?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240
+![image](https://user-images.githubusercontent.com/30583971/157202318-96502e43-99ed-49ea-b8d8-1503c55b6182.png)
+
 
 本系列文章的知识点也会和这个脑图基本一致，本文先介绍Redis的基本知识，后续文章会详细介绍Redis的数据结构、应用、持久化等多个方面。
 
