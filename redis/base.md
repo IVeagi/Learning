@@ -1,5 +1,3 @@
-> Redis是经常被用到的缓存中间件，也是面试过程中常被问到的。这篇文章总结了相关的技术点。持续分享互联网开发技术干货，欢迎关注我。
-
 # 一、Redis是什么
 
 > REmote DIctionary Server(Redis) 是一个由Salvatore Sanfilippo写的key-value存储系统。
