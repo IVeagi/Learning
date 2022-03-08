@@ -388,44 +388,68 @@ Minor GC和Major GC是俗称，在Hotspot JVM实现的Serial GC, Parallel GC, CM
 # 四、工程
 
 ## 1、MQ部分
+
 (1) MQ的作用
+
 解耦、异步、削峰
+
 (2) MQ的缺点
+
 系统可用性降低（MQ可能会挂掉）、系统复杂度提高（保证不重复消费、消息丢失的处理）、一致性问题
+
 (3) 如何保证消息不被重复消费
+
 ① 消费者通过对消息做MD5加密，判断是否在缓存中已存在
+
 (4) 消息丢失如何处理
+
 ① 生产者丢失 ：使用RabbitMQ提供的事务功能（同步耗性能）、Confirm模式（异步效率高）
 ② MQ丢失 ：开启 RabbitMQ 的持久化
 ③ 消费者丢失 ：使用MQ提供的Ack机制
+
 (5) 消息积压如何处理
+
 加快消费速度，多开启一些消费程序或消费协程
+
 (6) 如何保证消息的顺序性
+
 需要保证顺序的消息，都发往同一个消费程序，或同一个消费协程
 (7) 消息队列的原理，设计，可用性
+
 (8) 解决Kafka拥堵
+
 (9) Kafka事务的使用方法、原理
+
 (10) kafka怎么保证消息不丢失的
+
 (11) Kafka底层是如何保证消息顺序性的
+
 类似消息ID的东西 ？
+
 (12) Kafka都有哪些节点
+
 Broker、Producer、Consumer、Partition、Topic、Consumer Group
 ## 2、缓存部分
+
 (1) Redis为什么是单线程的
 因为Redis是基于内存的操作，CPU不是Redis的瓶颈，IO才是Redis的瓶颈。所以解决IO问题才是最关键的，解决IO问题不需要多线程（使用IO多路复用即可），而且单线程容易实现，避免了线程开销、锁的性能开销等。
+
 (2) Redis为什么单线程效率高
 ① 不需要各种锁的性能消耗
 ② 不需要线程切换的开销
 ③ Redis使用IO多路复用技术
 ④ Redis是纯内存操作
+
 (3) Redis客户端执行一条命令的过程
 分为四个过程：发送命令、命令排队、命令执行、返回结果
 
 (4) 如果CPU是Redis瓶颈、或想提高Redis性能
 多开启几个Redis进程
+
 (5) 单线程的优劣势
 优势 ：保证了每个操作的原子性
 劣势 ：无法发挥多核CPU性能，不过可以通过在单机开多个Redis实例来完善
+
 (6) redis 的线程模型
 redis内部使用文件事件处理器file event handler，这个文件事件处理器是单线程的，所以redis才叫做单线程的模型。它采用 IO 多路复用机制同时监听多个 socket，根据 socket 上的事件来选择对应的事件处理器进行处理。
 
@@ -434,24 +458,32 @@ redis内部使用文件事件处理器file event handler，这个文件事件处
 ● IO 多路复用程序
 ● 文件事件分派器
 ● 事件处理器（连接应答处理器、命令请求处理器、命令回复处理器）
+
 (7) 缓存穿透
 把存在的数据存储在布隆过滤器中，使用布隆过滤器判断key是否存在，不存在的话，直接返回，不查询DB
+
 (8) 缓存雪崩
 定义随机失效时间，不要把失效时间统一在某个时间点，失效时间要尽量分散
+
 (9) Redis为什么采用跳表而不是红黑树
+
 (10) 实现延迟队列
 使用Redis Zset实现
+
 (11) Pipeline的命令数量取决于哪些因素
 客户端发送缓冲区大小、服务端缓冲区大小、网络带宽、排队等待的最大可接受时延（即最慢多久执行完成）
+
 (12) Redis线程模型
 在传统的Redis中线程模型是单线程的，但是在阿里云开发的Redis或各种Redis版本中，是可以支持多线程的，如下图为阿里云的Redis
 
 (13) Redis命令是原子性的吗
 答 ：对于使用方来说大部分命令是原子性，但pipeline并不是原子性的。而且Redis大部分命令内部实现并不是原子性的
+
 (14) Redis有哪些性能优化方案
 1、Master不要做持久化工作（如RDB、AOF等），而使用Slave从库做持久化工作
 2、为了主从复制的速度和稳定性，Master和Slave最好在同一个机房/局域网内
 3、主从复制不要使用网状/图状结构，用单向链表结构更为稳定，即Master <- Slave1 <- Slave2 <- Slave3。这样的结构方便解决单点故障问题，实现Slave对Master的替换。如果Master挂掉，可以立即使用Slave1做Master
+
 (16) Redis的事务实现原理，为什么不支持回滚
 Redis的作者在事务功能的文档中解释说，不支持事务回滚是因为这种复杂的功能和Redis追求的简单高效的设计主旨不符合，并且他认为，Redis事务的执行时，错误通常都是编程错误造成的，这种错误通常只会出现在开发环境中，而很少会在实际的生产环境中出现，所以他认为没有必要为Redis开发事务回滚功能。所以我们在讨论Redis事务回滚的时候，一定要区分命令发生错误的时候。
 在Redis中实现事务主要依靠以下几个命令来实现：
@@ -467,8 +499,10 @@ Redis不支持事务的回滚机制，即使事务队列中的某个命令在执
 
 (17) 使用Redis防止用户重复下单
 使用Redis分布式锁的方式，防止用户重复下单
+
 (18) 秒杀/减库存/防止超卖
 使用Redis+Lua的方式实现减库存
+
 (19) Redis的多线程和单线程的瓶颈
 Redis 6.0之后引入多线程
 
@@ -484,6 +518,7 @@ redis最多能支持2^32个键，差不多就是2.5亿个，每个key中的值�
 (22) ZSet是如何实现的，画出数据结构
 ziplist 和 skiplist ，具体使用哪个类型，是由当前Key中的元素数量决定的
 skiplist 底层是由跳表实现的
+
 (23) zrange start, stop, 总长度为 n, 复杂度是多少?
 Time complexity: O(log(N)+M) with N being the number of elements in the sorted set and M the number of elements returned.
 其中 N 是排序集中的元素数，M 是返回的元素数。
@@ -495,10 +530,12 @@ M ：拉出遍历从start到stop一共N个元素的时间复杂度
 跳表中的元素最下面的一层是有序的(上面的几层就是跳表的索引)，按照分数排序，我们只要找出 start 代表的元素，然后向前或者向后遍历 M 次拉出所有数据即可，而找出 start 代表的元素，其实就是在跳表中找一个元素的时间复杂度。跳表中每个节点每一层都会保存到下一个节点的跨度，在寻找过程中可以根据跨度和来求当前的排名，所以查找过程是 O(log(N) 过程，加上遍历 M 个元素，就是 O(log(N)+M)，所以 redis 的 zrange 不会像 mysql 的 offset 有比较严重的性能问题。
 
 (24) redis管道原理？保证原子性吗
+
 (25) 管道和事务的区别？redis事务保证原子性么
 pipeline是客户端的行为，对于服务器来说是透明的，可以认为服务器无法区分客户端发送来的查询命令是以普通命令的形式还是以pipeline的形式发送到服务器的；
 
 而事务则是实现在服务器端的行为，用户执行MULTI命令时，服务器会将对应这个用户的客户端对象设置为一个特殊的状态，在这个状态下后续用户执行的查询命令不会被真的执行，而是被服务器缓存起来，直到用户执行EXEC命令为止，服务器会将这个用户对应的客户端对象中缓存的命令按照提交的顺序依次执行。
+
 (26) Redis集群一致性问题
 一致性分为 ：强一致性、弱一致性、最终一致性
 
@@ -507,9 +544,12 @@ pipeline是客户端的行为，对于服务器来说是透明的，可以认为
 Redis用最终一致性换取了高吞吐量
 
 主节点挂了的时候，如果数据没有同步到备节点，是会出现数据丢失的情况
+
 (27) 怎么统计一亿用户的日活，hyperloglog有什么缺点，bitmap不行么
+
 (28) 分布式锁
 分布式锁使用setnx实现，通过给锁加过期时间，实现锁的自动释放。
+
 (29) HASH扩容
 redis中的hash表采用的是渐进式hash的方式。ht 属性是一个包含两个项的数组，数组中的每个项都是一个dictht哈希表，一般情况下使用的都是ht[0]的哈希表，而ht[1]的哈希表只会在rehash的时候使用。
 
@@ -526,10 +566,12 @@ redis中的hash表采用的是渐进式hash的方式。ht 属性是一个包含�
 在渐进式rehash的过程，如果有增删改查操作时，如果index大于rehashindex，访问ht[0]，否则访问ht[1]。
 
 随着操作的进行，哈希表中的键值对会逐渐增多或减少，这时为了让哈希表负载因子位置在一个合理的范围之内就会对哈希表大小进行扩展或收缩即rehash。
+
 (30) 什么时候需要布隆过滤器，以及它的原理
 
 
 (31) lazy free 机制
+
 (32) 重要服务器参数
 lazyfree-user-del ：用户手动执行del命令时的延迟释放策略（如del 命令）
 lazyfree-server-del ：服务器自动删除数据时的延迟释放策略（如Key过期）
@@ -545,12 +587,15 @@ lazyfree-server-del ：服务器自动删除数据时的延迟释放策略（如
 集群版 / 性能增强版
 短连接 ：10w左右QPS
 长连接 ：15W左右甚至更多
+
 (34) AOF机制
 
 (35) Redis慢日志
 
 (36) Redis集群原理
+
 (37) Redis Set实现原理
+
 set内部使用到了intset(整数集合)和hashtable(哈希表)两种方式来存储元素，如果set存储的元素是整数，且当元素个数小于512个会选择intset存储，目的是减少内存空间，遇到两种情况会发生变化，就是当存储的元素个数达到512(通过set-max-intset-entries 配置)或者添加了非整数值时如：‘b’，set会选择hashtable作为存储结构。
 
 整数集合intset是用来存储整数的集合，且存储是按照小到大的顺序来存储(可以二分查找)，intset目的是用来节省内存，当Redis集合类型的元素都是整数并且都处在64位有符号整数范围之内时，使用该结构体存储,
@@ -574,15 +619,18 @@ Redis还有一个AOF机制，可以生成新增的命令
 乐观锁只是在更新数据那一刻锁表，其他时间不锁表，所以相对于悲观锁，效率更高。 
 
 乐观锁的实现方式多种多样可以通过version或者其他状态条件： 
+
 1. 通过版本号实现 
 update table_xxx set name=#name#,version=version+1 where version=#version# 
 (3) 如果多个管理员同时修改博客，用乐观锁悲观锁如何解决 ？
+
 (4) 写一个SQL查出每班成绩前三的同学 student(no, name, classId, grade)
+
 (5) 怎么解决慢查询
+
 (6) mysql的锁机制，有事务为什么还用锁
+
 因为有些场景用事务可能解决不了，所以还是需要手动用锁，才能保证数据一致性。
-
-
 
 共享锁与排他锁 ：
 ● 共享锁（读锁）：其他事务可以读，但不能写。
@@ -592,24 +640,25 @@ update table_xxx set name=#name#,version=version+1 where version=#version#
 行级锁和表级锁。默认情况下，表锁和行锁都是自动获得的， 不需要额外的命令。
 
 
-
-
-
 (7) mysql字段默认值为什么不能设置为null
 ● 可能会出现不确定的查询，导致无法使用索引，引起数据库查询效率低下
 ● 如果很多字段可以为空，之后如果需要优化索引，则会引起不必要麻烦
+
 (8) mysql索引底层实现
 B+树
 (9) 访问数据库，从数据库连接池到数据库返回结果的过程
 https://www.zhihu.com/question/53589525/answer/275249556
 利用JDBC driver和MySQL数据库建立TCP连接之后的连接对象放在池中，当需要操作数据库的时候从池中取出一个连接，发送SQL到MySQL，MySQL经过SQL语法解析、查询优化、生成实际物理计划及执行、连接处理与类型处理等一系列的过程之后返回要查询的数据给JDBC driver的resultset。把连接对象重新放到池子中。
+
 (10) 数据库连接池和线程池的好处
 提升性能 和 方便管理 
 这两个池都是用于重用对象的，前者可以避免频繁地打开和关闭连接，后者可以避免频繁地创建和销毁线程
+
 (11) 如何处理长时间等待执行的SQL
 如果已经有长时间等待的sql执行中，在MySQL命令行中输入如下命令直接杀掉
 show processlist; 
 kill $pid;
+
 (12) 怎么查看数据库内存占用情况
 # 在Linux命令行执行
 top
@@ -622,8 +671,11 @@ show tables like '%memory%';
 
 (13) 减少回表
 尽量避免使用select *进行查询。因为select *不能运用到覆盖索引，必然会导致mysql回表二次查询，效率低下，如果select和where的内容只有索引列，可以提升mysql查询效率，数据量很大的表更明显。
+
 (14) 执行计划原理和作用
+
 (15) 什么情况下会引起全表查询
+
 (16) 如何理解数据库事务中的一致性
 https://www.zhihu.com/question/31346392/answer/362597203
 
@@ -634,11 +686,13 @@ ACID里的AID都是数据库的特征，也就是依赖数据库的具体实现�
 做个比喻事务就好比一个保镖,我们提到事务就会说ACID,而我们提到保镖会说强壮,保护安全,好功夫,踏实.这里强壮,好功夫和踏实都是保镖自己的特征,而安全是属于你的,而你通过保镖的特征来保护你的安全.
 
 所以综上，你可以理解一致性就是：应用系统从一个正确的状态到另一个正确的状态。而ACID就是说事务能够通过AID来保证这个C的过程。C是目的，AID都是手段
+
 (17) 四种隔离级别
 Read Uncommitted ：所有并发问题都有
 Read Committed ：解决脏读
 Repeated Read ：解决不可重复读
 Serialization ：解决幻读
+
 (18) MVCC
 https://zhuanlan.zhihu.com/p/231947511
 https://juejin.cn/post/6844903778026536968#heading-5
@@ -656,12 +710,17 @@ MVCC是指多版本并发控制。MVCC是在并发访问数据库时，通过对
 通俗的讲就是MVCC通过对数据进行多版本保存，根据比较版本号来控制数据是否展示，从而达到读取数据时无需加锁就可以实现事务的隔离性。
 
 MVCC的两个实现核心是undo log和一致性视图，通过undo log来保存多版本的数据，通过一致性视图来保存当前活跃的事务列表，将两者结合和制定一定的规则来判断当前可读数据。
+
 (19) Mysql保存在磁盘中的数据格式是什么，又如何编译成我们能识别的格式
+
 (20) MySQL索引再内存中以什么格式保存
+
 (21) B+树是一个怎样的树状？为什么会这样
 是一个又矮又胖的树状，这样可以减少磁盘IO
+
 (23) MySQL的分库分表，垂直分表和水平分表的选择
 垂直分表和水平分表的选择
+
 (24) 你是如何去优化慢SQL的
 对慢SQL优化一般可以按下面几步的思路：
 1、开启慢查询日志，设置超过几秒为慢SQL，抓取慢SQL
@@ -671,7 +730,9 @@ MVCC的两个实现核心是undo log和一致性视图，通过undo log来保存
 
 
 (25) 一条SQL的执行过程
+
 (26) 什么是最左匹配原则，为什么需要
+
 (27) B+树和二叉树有什么区别和优劣，为什么索引用B+树? B+树的时间复杂度？
 B+树一般不超过4层
 
@@ -687,21 +748,37 @@ InnoDB 支持外键，而 MyISAM 不支持。对一个包含外键的 InnoDB 表
 5、InnoDB 最小的锁粒度是行锁，MyISAM 最小的锁粒度是表锁。一个更新语句会锁住整张表，导致其他查询和更新都会被阻塞，因此并发访问受限。这也是 MySQL 将默认存储引擎从 MyISAM 变成 InnoDB 的重要原因之一；
 
 (29) MySQL 的聚簇索引和非聚簇索引有什么区别？
+
 (30) 假如要查 A in () AND B in (), 怎么建索引？
+
 (31) 查 A in () AND B in () 时, MySQL 是怎么利用索引的？
+
 (32) 假如查询 A in (), MySQL 是针对 N 个值分别查一次索引, 还是有更好的操作？
+
 (33) 分库分表后怎么查询分页
+
+
 (34) 分库分表后怎么保证主键仍然是递增的
+
 (35) 假如量很大, 你觉得需要分库分表吗? 怎么分?
+
 (36) 假如用 id 翻页的方式, 数据库表如何设计? 索引如何设计?
+
 (37) 什么是幻读
+
 (38) InnoDB如何防止幻读
+
 (39) mysql union index 原理
+
 (40) 联合索引的存储结构是什么，它的有效方式
+
 (41) 如何评估一个索引建的是否合理
+
 (42) 索引越多越好吗？
 索引越多，底层的维护成本也越多，而且数据库底层选择索引的时候，可能会不符合预期
+
 (43) 影响INNODB的性能和指标的元素可能有哪些
+
 (44) LIKE操作什么时候走索引
 在正常情况下，百分号在后面，可以使用索引：
 select object_name from t1 where object_name like ‘DBA%';
@@ -713,12 +790,18 @@ select object_name from t1 where object_name like '%LIB';
 
 
 (46) 原子性和一致性的实现原理
+
 (47) 建表会定义自增id么，为什么，自增id用完了怎么办
+
 (48) 一般你们怎么建mysql索引，基于什么原则，遇到过索引失效的情况么，怎么优化的
+
 (49) 为什么需要最左前缀匹配
+
 https://www.cnblogs.com/xuwc/p/14007766.html
 (50) 做过分库分表么，为什么要分库分表，会有什么问题
+
 (51) 多少数据适合分库分表，跨库，聚合操作怎么做
+
 (52) 聚族索引和非聚族索引
 聚族索引 ：数据和索引再一个文件中，如 innodb 引擎中的 .idb 文件
 非聚族索引 ：数据和索引不在一个文件中，如 myisam 引擎中的 .myd文件（存数据） 和 .myi文件（存索引）
@@ -726,8 +809,10 @@ https://www.cnblogs.com/xuwc/p/14007766.html
 .frm 文件是数据库引擎中定义的表结构文件
 
 需要补充的是，在数据库的聚集索引（Clustered Index）中，叶子节点直接包含卫星数据。在非聚集索引（NonClustered Index）中，叶子节点带有指向卫星数据的指针。
+
 (53) Binlog的三种类型
 row 、statement 、mixed
+
 (54) 数据库瓶颈
 不管是IO瓶颈，还是CPU瓶颈，最终都会导致数据库的活跃连接数增加，进而逼近甚至达到数据库可承载活跃连接数的阈值。在业务Service来看就是，可用数据库连接少甚至无连接可用。接下来就可以想象了吧（并发量、吞吐量、崩溃）。
 1、IO瓶颈
@@ -736,6 +821,7 @@ row 、statement 、mixed
 2、CPU瓶颈
 第一种：SQL问题，如SQL中包含join，group by，order by，非索引字段条件查询等，增加CPU运算的操作 -> SQL优化，建立合适的索引，在业务Service层进行业务计算。
 第二种：单表数据量太大，查询时扫描的行太多，SQL效率低，CPU率先出现瓶颈 -> 水平分表。
+
 (55) 索引列长度
 
 (56) 索引分类
@@ -747,6 +833,7 @@ row 、statement 、mixed
 (59) 死锁分析
 
 (60) MySQL两阶段提交
+
 (61) or 查询的问题
 OR查询可能会引起慢查询，解决方案可以用 Union 查询（实测发现Union也不行），或者是分两次查询把数据合在一起
 
@@ -756,28 +843,43 @@ explain select * from intimacy_score where useridsmall = 23243 and status = 1 un
 
 (63) InNoDB引擎可能会遇到的锁有哪些 
 行锁、间隙锁、表锁（基本不常见）
+
 (64) 快照读和当前读
+
 (65) InnoDB引擎和Myisam引擎的区别
 InnoDB的成功也正是充分利用了MVCC读不加锁的并发能力。
 
 # 4、Nginx部分
+
 (1) Nginx如何处理请求的
 Master进程和Worker进程
+
 (2) Nginx的IO模型
-5、设计模式
+
+## 5设计模式
+
 (1) 装饰者模式
+
 (2) 手写单例模式
+
 (3) 重载和重写的区别
+
 (4) 实现线程安全的单例模式
-6、秒杀抢购部分
+
+# 6、秒杀抢购部分
+
 (1) 1台服务器怎么做抢购
-7、用户验证
+
+# 7、用户验证
 (1) 单点登录，多服务器如何保证数据一致性
 公共服务器用做登陆服务
+
 (2) 分布式 Session 共享解决方案
-8、限流算法与应用
+
+# 8、限流算法与应用
 (1) 限流算法
 限流算法一般有漏桶算法和令牌桶算法两种限流算法 ，详见这里
+
 (2) 限流应用
 1) 抢购
 TairString是Redis企业版性能增强型实例集成了阿里巴巴Tair后新增的数据结构，比原生Redis String功能更加强大，除了比特位（bit）操作外能够覆盖原生Redis String的所有功能。
@@ -787,6 +889,7 @@ TairString的EXINCRBY/EXINCRBYFLOAT命令与原生Redis String的INCRBY/INCRBYFL
 使用原生Redis String实现抢购，代码逻辑复杂，一旦管理不当，容易出现漏网订单，即明明商品已经抢完，却还有用户收到抢购成功的提示，造成不良影响，而使用TairString，只需要非常简单的代码即可实现严谨的订单数量限制
 if(EXINCRBY(key_iphone, -1, MIN:0) == "would overflow")
     run_out();
+    
 2) 限流计数器
 与抢购限流器类似，使用EXINCRBY命令的MAX选项可以实现限流计数器，伪代码如下：
 if(EXINCRBY(rate_limitor, 1, MAX:1000) == "would overflow")
@@ -810,17 +913,24 @@ public boolean tryAcquire(Jedis jedis,String rateLimitor,int limiter){
 ● 使用唯一索引unique key实现
 (2) 如果用redis用什么数据结构存？
 setnx 、hsetnx
+
 10、ES
 (1) 为什么重建索引
 修改mapping字段、索引性能出现问题、索引的分片出现问题、索引占用内存出现问题
+
 (2) 分片不均
+
 (3) 倒排索引的原理
 lucene，分词，分片，副本
 (4) ES性能调优问题
+
 11、唯一自增ID的生成
 id要是稀疏的，64位
+
 12、加密算法
+
 13、多线程编程
+
 (1) 多线程编程要考虑什么
 (2) 线程上下文切换的开销具体是什么
 14、微信红包
@@ -885,16 +995,21 @@ function binsearch($x,$a){
 https://leetcode-cn.com/problems/merge-k-sorted-lists/
 20、500个数组，每个数组500个元素，每个数组从大到小拍好了序，求这500个数组中前500大的数
 21、求一个环形链表的环的长度
-六、数据结构
+
+# 六、数据结构
+
 1、双端队列
 两边都是可以进出的队列
+
 2、图和树的区别
 (1) 结构组成不同，图会形成环，树不会形成环。图有边，且边一般具有权重
 (2) 使用上的不同，图的数据结构操作和树的结构操作肯定不同
 (3) 关系不同，图中每个节点的关系是平等的，而树中不同的节点有父子关系
 (4) 解决问题不同，树主要是解决子任务、子问题。图主要是解决关系、距离类的问题
+
 3、常用的数据结构
 字符串、链表、散列表/哈希表、数组、栈、队列、堆、树、图
+
 4、无锁队列
 队列的基本使用（出队和入队）不需要加锁也是线程安全的。实现原理是基于CAS
 
@@ -902,269 +1017,4 @@ https://leetcode-cn.com/problems/merge-k-sorted-lists/
 跳表的时间复杂度O(logn)
 跳跃列表的平均查找和插入时间复杂度都是O(logn)
 
-七、PHP
-1、各种Web框架的共性
-2、魔术方法用过哪些
-__set()、__get()、__call()
-3、如何把PHP当双端队列使用
-array_push、array_pop、array_shift、array_unshift
-4、PHP的内存管理回收
-引用计数
-5、php-cgi、php-fpm、fastcgi区别
 
-6、PHP底层解析过程
-opcache
-
-7、var_dump怎么实现
-var_dump的实现原理，基于反射实现。通过gettype（反射）获取到变量的类型后，如果是数组、字符串、数字等可以直接打印或循环，如果是类的话，就再通过反射获取到类的名称和相关属性等，然后打印
-8、PHP循环中破坏的问题
-看如下的几个Case，具体可以 查看问题来源
-$array = array(1, 2, 3, 4, 5);
-
-// Case 1, what will output ?
-foreach ($array as $item) {
-  echo "$item\n";
-  $array[] = $item;
-}
-print_r($array);
-/* Output in loop:    1 2 3 4 5
- * $array after loop: 1 2 3 4 5 1 2 3 4 5 
-*/
-
-// Case 2, what will output ?
-foreach ($array as $key => $item) {
-  $array[$key + 1] = $item + 2;
-  echo "$item\n";
-}
-print_r($array);
-/* Output in loop:    1 2 3 4 5
- * $array after loop: 1 3 4 5 6 7 
-*/
-
-// Case 3, what will output ?
-// Move the array pointer on one to make sure it doesn't affect the loop
-var_dump(each($array));
-foreach ($array as $item) {
-  echo "$item\n";
-}
-var_dump(each($array));
-/* Output
-  array(4) {
-    [1]=>
-    int(1)
-    ["value"]=>
-    int(1)
-    [0]=>
-    int(0)
-    ["key"]=>
-    int(0)
-  }
-  1
-  2
-  3
-  4
-  5
-  bool(false)
-*/
-
-// Case 4, what will output ?
-foreach ($array as $key => $item) {
-  echo "$item\n";
-  each($array);
-}
-/* Output: 1 2 3 4 5 */
-
-// Case 5, what will output ?
-foreach ($array as $key => $item) {
-  echo "$item\n";
-  reset($array);
-}
-/* Output: 1 2 3 4 5 */
-9、PHP如何定义枚举类型
-使用 abstract class 抽象类，再引申一下，这个抽象类PHP已经为我们实现了，就是 SPL Type，不好的是这个扩展被废弃了，也就是说用不了，不过可以借鉴它的设计，它就是使用 抽象类 实现的 ，也可以看这个是网上讨论的PHP枚举实现问题
-SplEnum extends SplType {
-    
-    /* Constants */
-		const NULL __default = null ;
-		
-    /* Metode */
-		public getConstList ( bool $include_default = false ) : array
-		
-    /* Metode moștenite */
-		SplType::__construct ( mixed $initial_value = ? , bool $strict = ? )
-}
-
-class Month extends SplEnum {
-    const __default = self::January;
-    
-    const January = 1;
-    const February = 2;
-    const March = 3;
-    const April = 4;
-    const May = 5;
-    const June = 6;
-    const July = 7;
-    const August = 8;
-    const September = 9;
-    const October = 10;
-    const November = 11;
-    const December = 12;
-}
-
-echo new Month(Month::June) . PHP_EOL;
-
-try {
-    new Month(13);
-} catch (UnexpectedValueException $uve) {
-    echo $uve->getMessage() . PHP_EOL;
-}
-10、PHP数组删除某一个Value
-把需要删除的Value构造成一个数组，再用 array_diff() 即可
-$medalIds = array_unique($medalIds);
-if (count(array_intersect($medalIds, [self::MEDAL_ID2, self::MEDAL_ID3])) == 2) {
-    $medalIds = array_diff($medalIds, [self::MEDAL_ID2]);
-}
-11、结合phpfpm总结PHP的生命周期
-一个 PHP 实例，无论通过 HTTP 请求调用的，还是从命令行启动的，都会依次进行 MINIT、RINIT、RSHUTDOWN、MSHUTDOWN 四个过程
-
-12、pconnect和connect区别
-首先要先明确一点，pconnect和connect是PHP的特性，即是PHPRedis内部实现的，无论使用哪种连接Redis，都和Redis本身无关，只和PHP有关系，即或好或坏等各种问题和特性，也是和PHP有关的，与Redis无关。
-大家都知道PHP程序在执行结束后，其所占用的内存都释放掉了，包括 建立Redis连接的资源 ，所以程序下次执行时，还需要再重新建立一个与Redis的连接。在高并发下PHP程序每次都需要重新建立一次Redis连接，这样建立连接所耗费的时间问题就会严重放大。
-
-为了解决这个问题，PHPRedis实现了 Redis连接资源 的“更久的存储”，即在PHP程序结束后，并不会立即把这个连接资源释放掉，而是存储在php-fpm进程中，以方便下次PHP程序的使用。
-
-如果使用connect的QPS是2000，即PHP程序使用connect连接服务器，1秒内可以发2000个请求
-使用pconnect的QPS可至 5000，即PHP程序使用pconnect连接服务器，1秒内可以发5000个请求
-13、yield的思想是什么
-在PHP中，yield主要是用于优化内存使用的，即采用按需加载至内存，而不是直接一次性全部载入内存。所以yield的思想是按需加载？yield是生成器，是异步 ？
-14、PHP循环为什么可以直接改临时变量
-下面的代码为什么会输出下面的结果，即 $value->age = 20; 为什么会生效呢 ？
-因为$value虽然是临时局部变量，但更重要的是它是一个指针，它是一个 A的引用类型 ，即在创建对象的时候，会先在堆内存上分配空间，然后返回一个指向这段空间的指针。
-所以指针对数据的修改是会直接生效的，局部变量的这个因素不会影响到它是一个指针的本质，所以修改可以直接生效。
-class A
-{
-    public $name = '';
-    public $age = 0;
-    function __construct($name = '', $age = '')
-    {
-        $this->name = $name;
-        $this->age  = $age;
-    }
-}
-$arr = [
-    new A('张三'),
-    new A('李四'),
-    new A('王五'),
-];
-foreach ($arr as $index => $value) {
-    $value->age = 20; // 为什么会生效 ？
-}
-print_r($arr);
-Array
-(
-    [0] => A Object
-        (
-            [name] => 张三
-            [age] => 20
-        )
-
-    [1] => A Object
-        (
-            [name] => 李四
-            [age] => 20
-        )
-
-    [2] => A Object
-        (
-            [name] => 王五
-            [age] => 20
-        )
-
-)
-15、PHP如何控制HTTP或页面
-// 一、如何重定向
-
-function redirect($url)
-{
-    header("Location: $url");
-    exit();
-}
-
-header('location:http://www.baidu.com');
-
-echo '<meta http-equiv="refresh" content="1;url=http://www.baidu.com">';
-
-echo '<script>window.location.href="http://www.baidu.com"</script>';
-16、ob问题
-ob即output buffer输出缓冲区
-(1) 为什么在sleep之前无法echo，如何解决
-ob_start();
-
-echo 'Output one.';
-ob_flush();
-usleep(1500000);
-echo 'Output two.';
-ob_flush();
-17、PHP的两种缓存
-APC缓存和Opcache缓存
-18、静态类与普通类的区别
-1、写法上的区别 :: 和 ->
-2、普通类需要手动创建对象，内存分配在堆区。静态类不需要手动创建对象，内存分配在静态区
-3、静态方法只能访问静态成员变量，而不能访问非静态成员变量
-19、PHP数组扩容原理
-PHP 的数组在底层实现了自动扩容机制，当插入一个元素且没有空闲空间时，就会触发自动扩容机制，扩容后再执行插入。
-
-扩容的过程为：
-
-如果已删除元素所占比例达到阈值，则会移除已被逻辑删除的 Bucket，然后将后面的 Bucket 向前补上空缺的 Bucket，因为 Bucket 的下标发生了变动，所以还需要更改每个元素在中间映射表中储存的实际下标值。
-
-如果未达到阈值，PHP 则会申请一个大小是原数组两倍的新数组，并将旧数组中的数据复制到新数组中，因为数组长度发生了改变，所以 key-value 的映射关系需要重新计算，这个步骤为重建索引（rehash）。
-20、CURL需要注意哪两个timeout时间
-php去curl一个远程的连接，需要注意哪2个timeout时间
-● 超时时间
-● 建立连接的超时时间
-21、快速定位PHP慢的地方
-使用phptrace（类似pprof 中的trace），或在函数级别记录时间消耗日志。
-22、PHP 运行模式有几种？
-无论哪种运行模式，PHP 工作原理都是一样的，作为一种 SAPI 运行。
-● CGI 模式
-● FastCGI 模式
-● CLI 模式
-● Web 模块模式
-
-# 八、Go
-1、return是否是原子的
-不是，defer是在return之前执行的。这个在官方文档中是明确说明了的。要使用defer时不踩坑，最重要的一点就是要明白，return xxx这一条语句并不是一条原子指令!
-
-函数返回的过程是这样的：先给返回值赋值，然后调用defer表达式，最后才是返回到调用函数中。
-
-defer表达式可能会在设置函数返回值之后，在返回到调用函数之前，修改返回值，使最终的函数返回值与你想象的不一致。
-2、slice浅拷贝还是深拷贝
-浅拷贝
-3、如何理解GMP之间的关系
-
-
-4、如何channel阻塞了怎么处理
-使用default语句添加阻塞处理
-
-select是执行选择操作的一个结构，它里面有一组case语句，它会执行其中无阻塞的那一个，如果都阻塞了，那就等待其中一个不阻塞，进而继续执行，它有一个default语句，该语句是永远不会阻塞的，我们可以借助它实现无阻塞的操作。
-5、Go的异常处理
-painc() 和 recover()
-6、数组和slice的区别，slice底层实现原理
-数组和C语言中的数组一样，是固定长度的
-slice底层的实现是也是数组，只是当扩容的时候，会重新申请一个更大长度的数组，并发生数据的拷贝
-7、defer函数的执行顺序
-(1) 多个defer的执行顺序为“后进先出”
-(2) defer、return、返回值三者的执行逻辑应该是：return最先执行，return负责将结果写入返回值中；接着defer开始执行一些收尾工作；最后函数携带当前返回值退出。
-
-return先执行，defer后执行
-九、JAVA
-1、HashMap 和 HashTable 的区别
-Hashtable是线程安全的
-HashMap是线程不安全的
-2、链表非常长会怎么样？什么情况下会转红黑树
-当Map链表长度大于或等于阈值TREEIFY_THRESHOLD（默认为 8）的时候，如果同时还满足容量(数组的长度)大于或等于 MIN_TREEIFY_CAPACITY（默认为 64）的要求，就会把链表转换为红黑树。同样，后续如果由于删除或者其他原因调整了大小，当红黑树的节点小于或等于 6 个以后，又会恢复为链表形态。
-
-链表查询时间复杂度为O(N) / 红黑树查询时间复杂度为O(log(N))
-3、HashMap发生rehash
-java中的hashmap，当数据数量达到阈值的时候(0.75)，就会发生rehash，hash表长度变为原来的二倍，将原hash表数据全部重新计算hash地址，重新分配位置，达到rehash目的
