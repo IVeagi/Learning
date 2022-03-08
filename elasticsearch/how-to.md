@@ -65,7 +65,9 @@
    ⑤索引前数据
    
    ⑥将映射标识符视为keyword
+   
 ![image.png](https://upload-images.jianshu.io/upload_images/15294843-a1dbe52f1bdb00bc.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
    ⑦避免使用脚本
    
    ⑧搜索输入日期（比如精确到分钟或者小时）
@@ -89,4 +91,5 @@
    
 ## 7.调整分片大小
 分片是为了防止硬件故障并且增加容量，单分片最多20亿文档
+
 [|调整分片大小Elasticsearch Guide [7.15] |弹性的](https://www.elastic.co/guide/en/elasticsearch/reference/7.15/size-your-shards.html)
