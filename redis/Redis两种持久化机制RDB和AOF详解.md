@@ -105,6 +105,8 @@ save 60 10000
 
 # 三、AOF机制
 
+aof原理：https://blog.csdn.net/luolaifa000/article/details/84178289
+
 全量备份总是耗时的，有时候我们提供一种更加高效的方式AOF，工作机制很简单，redis会将每一个收到的写命令都通过write函数追加到文件中。通俗的理解就是日志记录，类似mysql的binlog。
 
 **1、持久化原理**
