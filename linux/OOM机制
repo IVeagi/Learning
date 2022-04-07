@@ -1,6 +1,13 @@
-    Linux内核根据应用程序的要求分配内存，通常来说应用程序分配了内存但是并没有实际全部使用，为了提高性能，这部分没用的内存可以留作它用，这部分内存是属于每个进程的，内核直接回收利用的话比较麻烦，所以内核采用一种过度分配内存（over-commit memory）的办法来间接利用这部分“空闲”的内存，提高整体内存的使用效率。一般来说这样做没有问题，但当大多数应用程序都消耗完自己的内存的时候麻烦就来了，因为这些应用程序的内存需求加起来超出了物理内存（包括swap）的容量，内核（OOM killer）必须杀掉一些进程才能腾出空间保障系统正常运行。用银行的例子来讲可能更容易懂一些，部分人取钱的时候银行不怕，银行有足够的存款应付，当全国人民（或者绝大多数）都取钱而且每个人都想把自己钱取完的时候银行的麻烦就来了，银行实际上是没有这么多钱给大家取的。
+       Linux内核根据应用程序的要求分配内存，通常来说应用程序分配了内存但是并没有实际全部使用，为了提高性能，这部分没用的内存可以留作它用，这部分内存是属于每个进程的，
+    内核直接回收利用的话比较麻烦，所以内核采用一种过度分配内存（over-commit memory）的办法来间接利用这部分“空闲”的内存，提高整体内存的使用效率。一般来说这样做没有问题，
+    但当大多数应用程序都消耗完自己的内存的时候麻烦就来了，因为这些应用程序的内存需求加起来超出了物理内存（包括swap）的容量，内核（OOM killer）必须杀掉一些进程才能腾出空间
+    保障系统正常运行。用银行的例子来讲可能更容易懂一些，部分人取钱的时候银行不怕，银行有足够的存款应付，当全国人民（或者绝大多数）都取钱而且每个人都想把自己钱取完的时候银行
+    的麻烦就来了，银行实际上是没有这么多钱给大家取的。
 
-       比如某天一台机器突然ssh远程登录不了，但能ping通，说明不是网络的故障，原因是sshd进程被OOM killer杀掉了。重启机器后查看系统日志/var/log/messages会发现Out of Memory:Killprocess 1865（sshd）类似的错误信息。又比如有时VPS的MySQL总是无缘无故挂掉，或者VPS 经常死机，登陆到终端发现都是常见的 Out of memory 问题。这通常是因为某时刻应用程序大量请求内存导致系统内存不足造成的，这时会触发 Linux 内核里的 Out of Memory (OOM) killer，OOM killer 会杀掉某个进程以腾出内存留给系统用，不致于让系统立刻崩溃。如果检查相关的日志文件（/var/log/messages）就会看到下面类似的Out of memory:Kill process 信息：
+       比如某天一台机器突然ssh远程登录不了，但能ping通，说明不是网络的故障，原因是sshd进程被OOM killer杀掉了。重启机器后查看系统日志/var/log/messages会发
+       现Out of Memory:Killprocess 1865（sshd）类似的错误信息。又比如有时VPS的MySQL总是无缘无故挂掉，或者VPS 经常死机，登陆到终端发现都是常见的 Out of memory 问题。
+       这通常是因为某时刻应用程序大量请求内存导致系统内存不足造成的，这时会触发 Linux 内核里的 Out of Memory (OOM) killer，OOM killer 会杀掉某个进程以腾出内存留给系统用，
+       不致于让系统立刻崩溃。如果检查相关的日志文件（/var/log/messages）就会看到下面类似的Out of memory:Kill process 信息：
 
   ...
 
@@ -138,7 +145,13 @@ unsigned long oom_badness(struct task_struct *p,struct mem_cgroup *memcg,
 
 }
 
-      从上面的 oom_kill.c 代码里可以看到 oom_badness() 给每个进程打分，根据 points 的高低来决定杀哪个进程，这个 points 可以根据 adj 调节，root 权限的进程通常被认为很重要，不应该被轻易杀掉，所以打分的时候可以得到 3% 的优惠（分数越低越不容易被杀掉）。我们可以在用户空间通过操作每个进程的 oom_adj 内核参数来决定哪些进程不这么容易被 OOM killer 选中杀掉。比如，如果不想 MySQL 进程被轻易杀掉的话可以找到 MySQL 运行的进程号后，调整 /proc/PID/oom_score_adj 为 -15（注意 points越小越不容易被杀）防止重要的系统进程触发(OOM)机制而被杀死，内核会通过特定的算法给每个进程计算一个分数来决定杀哪个进程，每个进程的oom分数可以在/proc/PID/oom_score中找到。每个进程都有一个oom_score的属性，oom killer会杀死oom_score较大的进程，当oom_score为0时禁止内核杀死该进程。设置/proc/PID/oom_adj可以改变oom_score，oom_adj的范围为【-17，15】，其中15最大-16最小，-17为禁止使用OOM，至于为什么用-17而不用其他数值（默认值为0），这个是由linux内核定义的，查看内核源码可知：路径为linux-xxxxx/include /uapi/linux/oom.h。
+      从上面的 oom_kill.c 代码里可以看到 oom_badness() 给每个进程打分，根据 points 的高低来决定杀哪个进程，这个 points 可以根据 adj 调节，root 权限的进程通常被认为很重要，
+      不应该被轻易杀掉，所以打分的时候可以得到 3% 的优惠（分数越低越不容易被杀掉）。我们可以在用户空间通过操作每个进程的 oom_adj 内核参数来决定哪些进程不这么容易被
+      OOM killer 选中杀掉。比如，如果不想 MySQL 进程被轻易杀掉的话可以找到 MySQL 运行的进程号后，调整 /proc/PID/oom_score_adj 为 -15（注意 points越小越不容易被杀）
+      防止重要的系统进程触发(OOM)机制而被杀死，内核会通过特定的算法给每个进程计算一个分数来决定杀哪个进程，每个进程的oom分数可以在/proc/PID/oom_score中找到。
+      每个进程都有一个oom_score的属性，oom killer会杀死oom_score较大的进程，当oom_score为0时禁止内核杀死该进程。设置/proc/PID/oom_adj可以改变oom_score，
+      oom_adj的范围为【-17，15】，其中15最大-16最小，-17为禁止使用OOM，至于为什么用-17而不用其他数值（默认值为0），这个是由linux内核定义的，查看内核源码可知：
+      路径为linux-xxxxx/include /uapi/linux/oom.h。
 
  
        oom_score为2的n次方计算出来的，其中n就是进程的oom_adj值，oom_score的分数越高就越会被内核优先杀掉。当oom_adj=-17时，oom_score将变为0，所以可以设置参数/proc/PID/oom_adj为-17禁止内核杀死该进程。
@@ -172,9 +185,11 @@ unsigned long oom_badness(struct task_struct *p,struct mem_cgroup *memcg,
        继续观察，当bigmem稳定保持在85G一会后，内核会自动将其进程kill掉，增长的过程中没有被杀，如果不希望被杀可以执行
        pgrep -f "bigmem" | while read PID; do echo -17 > /proc/$PID/oom_adj;done
        执行以上命令前后，明显会对比出效果，就可以体会到内核OOM机制的实际作用了。
-       注意，由任意调整的进程衍生的任意进程将继承该进程的 oom_score。例如：如果 sshd 进程不受 oom_killer 功能影响，所有由 SSH 会话产生的进程都将不受其影响。这可在出现 OOM 时影响 oom_killer 功能救援系统的能力。
+       注意，由任意调整的进程衍生的任意进程将继承该进程的 oom_score。例如：如果 sshd 进程不受 oom_killer 功能影响，所有由 SSH 会话产生的进程都将不受其影响。
+       这可在出现 OOM 时影响 oom_killer 功能救援系统的能力。
 
-       当然还可以通过修改内核参数禁止在内存出现OOM时采取杀掉进程的这种机制，但此时会触发kernel panic。当内存严重不足时，内核有两种选择：1.直接panic 2.杀掉部分进程，释放一些内存。通过/proc/sys/vm/panic_on_oom可以控制，当panic_on_oom为1时，直接panic，当panic_on_oom为0时内核将通过oom killer杀掉部分进程。（默认是为0的）
+       当然还可以通过修改内核参数禁止在内存出现OOM时采取杀掉进程的这种机制，但此时会触发kernel panic。当内存严重不足时，内核有两种选择：1.直接panic 2.杀掉部分进程，
+       释放一些内存。通过/proc/sys/vm/panic_on_oom可以控制，当panic_on_oom为1时，直接panic，当panic_on_oom为0时内核将通过oom killer杀掉部分进程。（默认是为0的）
               # sysctl -w vm.panic_on_oom=1
               vm.panic_on_oom = 1 //1表示关闭，默认为0表示开启OOM killer
               # sysctl –p
@@ -193,9 +208,11 @@ unsigned long oom_badness(struct task_struct *p,struct mem_cgroup *memcg,
               # sysctl -w vm.overcommit_memory=2
               # echo "vm.overcommit_memory=2" >> /etc/sysctl.conf，
        vm.overcommit_memory 表示内核在分配内存时候做检查的方式。这个变量可以取到0,1,2三个值。对取不同的值时的处理方式都定义在内核源码 mm/mmap.c 的 __vm_enough_memory 函数中。
-       0：当用户空间请求更多的的内存时，内核尝试估算出剩余可用的内存。此时宏为 OVERCOMMIT_GUESS，内核计算：NR_FILE_PAGES 总量+SWAP总量+slab中可以释放的内存总量，如果申请空间超过此数值，则将此数值与空闲内存总量减掉 totalreserve_pages(?) 的总量相加。如果申请空间依然超过此数值，则分配失败。
+       0：当用户空间请求更多的的内存时，内核尝试估算出剩余可用的内存。此时宏为 OVERCOMMIT_GUESS，内核计算：NR_FILE_PAGES 总量+SWAP总量+slab中可以释放的内存总量，
+       如果申请空间超过此数值，则将此数值与空闲内存总量减掉 totalreserve_pages(?) 的总量相加。如果申请空间依然超过此数值，则分配失败。
        1：当设这个参数值为1时，宏为 OVERCOMMIT_ALWAYS，内核允许超量使用内存直到用完为止，主要用于科学计算。
-       2：当设这个参数值为2时，此时宏为 OVERCOMMIT_NEVER，内核会使用一个决不过量使用内存的算法，即系统整个内存地址空间不能超过swap+50%的RAM值，50%参数的设定是在overcommit_ratio中设定，内核计算：内存总量×vm.overcommit_ratio/100＋SWAP 的总量，如果申请空间超过此数值，则分配失败。vm.overcommit_ratio 的默认值为50。
+       2：当设这个参数值为2时，此时宏为 OVERCOMMIT_NEVER，内核会使用一个决不过量使用内存的算法，即系统整个内存地址空间不能超过swap+50%的RAM值，
+       50%参数的设定是在overcommit_ratio中设定，内核计算：内存总量×vm.overcommit_ratio/100＋SWAP 的总量，如果申请空间超过此数值，则分配失败。vm.overcommit_ratio 的默认值为50。
        以上为粗略描述，在实际计算时，如果非root进程，则在计算时候会保留3%的空间，而root进程则没有该限制。详细过程可看源码。
 
 
@@ -203,7 +220,8 @@ unsigned long oom_badness(struct task_struct *p,struct mem_cgroup *memcg,
 
 
 找出最有可能被 OOM Killer 杀掉的进程：
-我们知道了在用户空间可以通过操作每个进程的 oom_adj 内核参数来调整进程的分数，这个分数也可以通过 oom_score 这个内核参数看到，比如查看进程号为981的 omm_score，这个分数被上面提到的 omm_score_adj 参数调整后（-15），就变成了3：
+我们知道了在用户空间可以通过操作每个进程的 oom_adj 内核参数来调整进程的分数，这个分数也可以通过 oom_score 这个内核参数看到，比如查看进程号为981的 omm_score，
+这个分数被上面提到的 omm_score_adj 参数调整后（-15），就变成了3：
 # cat /proc/981/oom_score
 18
 # echo -15 > /proc/981/oom_score_adj
