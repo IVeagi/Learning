@@ -80,7 +80,7 @@
    4)搜索尽可能少的字段：query_string 和multi_match 查询越多，速度越慢，提高多字段的搜索速度的常用技术是将值复制到单个字段中，然后搜索是使用此字段  可以通过mapping中的 copy_to 执行无需更改文档的源
  ![image.png](https://upload-images.jianshu.io/upload_images/15294843-68d5cf9d24ac52c7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
  
-   5)索引前数据
+   5)索引前数据就是预热
    
    6)将映射标识符视为keyword
    
