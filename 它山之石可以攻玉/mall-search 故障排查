@@ -82,3 +82,282 @@ ts=2023-11-15 07:20:22; [cost=5.195321ms] result=@ArrayList[
 总结：1. mall-search 和 common-server/mall-cms-service 的刷新机制不一样，可能是agent版本区别  没有更新的jar包了
          2. 在应用中等待2分钟后重新注册，解决问题
 
+
+
+
+
+
+
+
+
+问题描述：
+线上服务在mall-search-service在内存溢出重启完之后没有流量进入；
+分析：
+1、consul service 版本1.8.3，客户端版本consul-api：1.4.5
+2、查询consul客户端服务，重启服务mall-search-service存在，并存活；
+3、在mall-search-service 机器上查询服务：localhost:8500/v1/internal/ui/services?dc=c2&index=22443641，存在重启服务（方法用错了，代码里面使用的接口：
+http://consul-cluster.qa.doublefs.com:8500/v1/health/service/mall-search-service?tag=env-qa&passing=true&token=）。
+3、重启服务时，有时候流量可以进入，有时候不能进入，不能进入时，差不多30分钟以上的时候，流量才能进入；
+解决过程：
+1、在QA上复现问题，手写脚本，不停请求mall-rest服务接口（/mall-rest/api/v1/product-list/small），该接口会访问mall-search-service服务，这样可以判断流量是否进入；
+2、查找consul获取服务列表的代码（org.springframework.cloud.consul.discovery.ConsulDiscoveryClient#getInstances(java.lang.String)）
+/*
+ * Copyright 2013-2019 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.springframework.cloud.consul.discovery;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import com.ecwid.consul.v1.ConsulClient;
+import com.ecwid.consul.v1.QueryParams;
+import com.ecwid.consul.v1.Response;
+import com.ecwid.consul.v1.catalog.CatalogServicesRequest;
+import com.ecwid.consul.v1.health.HealthServicesRequest;
+import com.ecwid.consul.v1.health.model.HealthService;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import org.springframework.cloud.client.DefaultServiceInstance;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
+
+import static org.springframework.cloud.consul.discovery.ConsulServerUtils.findHost;
+import static org.springframework.cloud.consul.discovery.ConsulServerUtils.getMetadata;
+
+/**
+ * @author Spencer Gibb
+ * @author Joe Athman
+ * @author Tim Ysewyn
+ * @author Chris Bono
+ */
+public class ConsulDiscoveryClient implements DiscoveryClient {
+
+    private static final Log log = LogFactory.getLog(ConsulDiscoveryClient.class);
+
+    private final ConsulClient client;
+
+    private final ConsulDiscoveryProperties properties;
+
+    public ConsulDiscoveryClient(ConsulClient client,
+          ConsulDiscoveryProperties properties) {
+       this.client = client;
+       this.properties = properties;
+    }
+
+    @Override
+    public String description() {
+       return "Spring Cloud Consul Discovery Client";
+    }
+
+    @Override
+    public List<ServiceInstance> getInstances(final String serviceId) {
+       return getInstances(serviceId,
+             new QueryParams(this.properties.getConsistencyMode()));
+    }
+
+    public List<ServiceInstance> getInstances(final String serviceId,
+          final QueryParams queryParams) {
+       List<ServiceInstance> instances = new ArrayList<>();
+
+       addInstancesToList(instances, serviceId, queryParams);
+
+       return instances;
+    }
+
+    private void addInstancesToList(List<ServiceInstance> instances, String serviceId,
+          QueryParams queryParams) {
+       HealthServicesRequest.Builder requestBuilder = HealthServicesRequest.newBuilder()
+             .setPassing(this.properties.isQueryPassing()).setQueryParams(queryParams)
+             .setToken(this.properties.getAclToken());
+       String queryTag = this.properties.getQueryTagForService(serviceId);
+       if (queryTag != null) {
+          requestBuilder.setTag(queryTag);
+       }
+       HealthServicesRequest request = requestBuilder.build();
+       Response<List<HealthService>> services = this.client.getHealthServices(serviceId,
+             request);
+
+       for (HealthService service : services.getValue()) {
+          String host = findHost(service);
+
+          Map<String, String> metadata = getMetadata(service,
+                this.properties.isTagsAsMetadata());
+          boolean secure = false;
+          if (metadata.containsKey("secure")) {
+             secure = Boolean.parseBoolean(metadata.get("secure"));
+          }
+          instances.add(new DefaultServiceInstance(service.getService().getId(),
+                serviceId, host, service.getService().getPort(), secure, metadata));
+       }
+    }
+
+    public List<ServiceInstance> getAllInstances() {
+       List<ServiceInstance> instances = new ArrayList<>();
+
+       Response<Map<String, List<String>>> services = this.client
+             .getCatalogServices(CatalogServicesRequest.newBuilder()
+                   .setQueryParams(QueryParams.DEFAULT).build());
+       for (String serviceId : services.getValue().keySet()) {
+          addInstancesToList(instances, serviceId, QueryParams.DEFAULT);
+       }
+       return instances;
+    }
+
+    @Override
+    public List<String> getServices() {
+       String aclToken = this.properties.getAclToken();
+
+       CatalogServicesRequest request = CatalogServicesRequest.newBuilder()
+             .setQueryParams(QueryParams.DEFAULT)
+             .setToken(this.properties.getAclToken()).build();
+       return new ArrayList<>(
+             this.client.getCatalogServices(request).getValue().keySet());
+    }
+
+    @Override
+    public int getOrder() {
+       return this.properties.getOrder();
+    }
+
+    /**
+     * Depreacted local resolver.
+     */
+    @Deprecated
+    public interface LocalResolver {
+
+       String getInstanceId();
+
+       Integer getPort();
+
+    }
+
+}
+3、本地debug获取在代码执行过程中，获取实例的调用链
+ConsulCatalogWatch#catalogServicesWatch->DiscoveryClientResolverFactory#heartbeat->DiscoveryClientNameResolver#refreshFromExternal->DiscoveryClientNameResolver.Resolve#resolveInternal
+4、分析代码
+4.1、ConsulCatalogWatch#catalogServicesWatch创建一个每3s钟的定时任务，获取consul服务的consulIndex值（这里得点赞下consul的设计者，为了降低请求数，设计了consulIndex）。同时发送心跳事件（这里为了降低耦合，使用spring的事件通知机制）
+try {
+    long index = -1;
+    if (this.catalogServicesIndex.get() != null) {
+       index = this.catalogServicesIndex.get().longValue();
+    }
+
+    CatalogServicesRequest request = CatalogServicesRequest.newBuilder()
+          .setQueryParams(new QueryParams(
+                this.properties.getCatalogServicesWatchTimeout(), index))
+          .setToken(this.properties.getAclToken()).build();
+    Response<Map<String, List<String>>> response = this.consul
+          .getCatalogServices(request);
+    Long consulIndex = response.getConsulIndex();
+    if (consulIndex != null) {
+       this.catalogServicesIndex.set(BigInteger.valueOf(consulIndex));
+    }
+
+    if (log.isTraceEnabled()) {
+       log.trace("Received services update from consul: " + response.getValue()
+             + ", index: " + consulIndex);
+    }
+    this.publisher.publishEvent(new HeartbeatEvent(this, consulIndex));
+}
+catch (Exception e) {
+    log.error("Error watching Consul CatalogServices", e);
+}
+4.2、事件监听DiscoveryClientResolverFactory#heartbeat，先比较新值和老值是否有变化，如果没有变化，不进行更新操作，请记住这里。
+@EventListener(HeartbeatEvent.class)
+public void heartbeat(final HeartbeatEvent event) {
+    if (this.monitor.update(event.getValue())) {
+        for (final DiscoveryClientNameResolver discoveryClientNameResolver : this.discoveryClientNameResolvers) {
+            discoveryClientNameResolver.refreshFromExternal();
+        }
+    }
+}
+4.3、DiscoveryClientNameResolver#refreshFromExternal
+public void refreshFromExternal() {
+    this.syncContext.execute(() -> {
+        if (this.listener != null) {
+            resolve();
+        }
+    });
+}
+
+private void resolve() {
+    log.debug("Scheduled resolve for {}", this.name);
+    if (this.resolving) {
+        return;
+    }
+    this.resolving = true;
+    this.executor.execute(new Resolve(this.listener, this.instanceList));
+}
+4.4、DiscoveryClientNameResolver.Resolve#resolveInternal获取service对应的Instance，并判断是否进行更新
+private List<ServiceInstance> resolveInternal() {
+    final String name = DiscoveryClientNameResolver.this.name;
+    final List<ServiceInstance> newInstanceList =
+            DiscoveryClientNameResolver.this.client.getInstances(name);
+    log.debug("Got {} candidate servers for {}", newInstanceList.size(), name);
+    if (CollectionUtils.isEmpty(newInstanceList)) {
+        log.error("No servers found for {}", name);
+        this.savedListener.onError(Status.UNAVAILABLE.withDescription("No servers found for " + name));
+        return Lists.newArrayList();
+    }
+    if (!needsToUpdateConnections(newInstanceList)) {
+        log.debug("Nothing has changed... skipping update for {}", name);
+        return KEEP_PREVIOUS;
+    }
+    log.debug("Ready to update server list for {}", name);
+    final List<EquivalentAddressGroup> targets = Lists.newArrayList();
+    for (final ServiceInstance instance : newInstanceList) {
+        final int port = getGRPCPort(instance);
+        log.debug("Found gRPC server {}:{} for {}", instance.getHost(), port, name);
+        targets.add(new EquivalentAddressGroup(
+                new InetSocketAddress(instance.getHost(), port), Attributes.EMPTY));
+    }
+    if (targets.isEmpty()) {
+        log.error("None of the servers for {} specified a gRPC port", name);
+        this.savedListener.onError(Status.UNAVAILABLE
+                .withDescription("None of the servers for " + name + " specified a gRPC port"));
+        return Lists.newArrayList();
+    } else {
+        this.savedListener.onResult(ResolutionResult.newBuilder()
+                .setAddresses(targets)
+                .build());
+        log.info("Done updating server list for {}", name);
+        return newInstanceList;
+    }
+}
+5、分析完代码，接下来用arthas watch命令在线上监控请求的入参，出参，当前对象的值。梳理出来四个核心接口
+  org.springframework.cloud.consul.discovery.ConsulCatalogWatch#catalogServicesWatch
+  net.devh.boot.grpc.client.nameresolver.DiscoveryClientResolverFactory heartbeat
+  net.devh.boot.grpc.client.nameresolver.DiscoveryClientNameResolver refreshFromExternal
+  com.ecwid.consul.v1.health.HealthConsulClient getHealthServices
+  监控信息如下。
+  服务关闭时间：30:42 ；启动时间 ： 32.04
+  net.devh.boot.grpc.client.nameresolver.DiscoveryClientResolverFactory heartbeat 
+暂时无法在飞书文档外展示此内容
+  net.devh.boot.grpc.client.nameresolver.DiscoveryClientNameResolver refreshFromExternal
+暂时无法在飞书文档外展示此内容
+  监控的初步结论：heartbeat心跳3ms一次，refreshFromExternal 在服务上下线时，有调用。
+  6、为了方便测试，改到QA上进行测试，为了方便处理，把QA的日志级别设置为debug。
+[图片]
+      通过debug日志分析得出结论：
+1、服务下线时，获取健康实例数是正确的，但是服务上线时，获取健康实例数不一致；
+2、由于服务上线之后，服务是通过consulIndex判断是否获取健康实例数，因此，上线第一次没有获取到正确的实例数，之后就不会再获取健康实例数了，这样导致mall-rest没办法获取新上线的健康实例，流量转发不到mall-search-service上；
+解决方案：
+1、解决为啥服务上线之后，为啥获取健康是实例数不正确，初步怀疑是consul service端的问题，服务上线之后，没有通过健康检查，但是consulIndex已经变更了，解决思路：修改consul service 端代码，根据健康实例，实现consulIndex值；
+2、服务注册之后，让consulIndex变更，让mall-rest重新获取健康实例数。
+目前采用方案2，在服务注册成功之后20s之后，通过修改服务的tag，让consulIndex值发生变化，实现mall-rest重新获取健康实例。
+
