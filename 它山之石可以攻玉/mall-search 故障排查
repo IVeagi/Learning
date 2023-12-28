@@ -1,0 +1,84 @@
+背景：mall-search服务发生OOM后重启，但是重启后的pod长时间无流量接入，时间不固定
+环境：QA环境 ，mall-search（两个pod），mall-rest（1个pod）
+工具:  python脚本:向mall-search注入流量
+import requests
+
+def print_hi(name):
+    # 通过url直接加上请求参数，与通过params传参效果是一样的
+    header = {
+        "Content-Type": "application/json",
+        "Accept-Charset": "utf-8",
+        "app-id": "10",
+        "system-source": "ios",
+        "token": "48QYvAsWnj3QC3L4gBJJ6f4fgx9n72jahekyhynkWUFB02Sr5xjV90XUXrB1u8RA"
+    }
+    i=0
+    while i < 1000:
+        urlString= 'http://cdn-qa.doublefs.com/mall-rest/api/v1/product-list/all-products%d' % i
+        response2 = requests.get(url=urlString, headers=header)
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+    print_hi('PyCharm')
+       arthas 查看入参出参，com.ecwid.consul.v1.health.HealthConsulClient getHealthServices
+       web url 查看consul注册信息：http://consul-cluster.qa.doublefs.com:8500/v1/health/service/mall-search-service?tag=env-qa&passing=true&token= 
+步骤：
+1. 在qa环境两个mall-search 的pod  保证服务正常，且有流量接入（根据日志） web url 检测到两个pod
+mall-search-6c4d86fdb-5c7mv （pod1）   mall-search-6c4d86fdb-ktvmm （pod2）
+2.  在mall-rest 上开启arthas  监听consul相关入参出参
+  其中common-server 和 mall-cms-service 每3秒刷新一次
+ mall-search-service 不一定 4s-10m都有（只统计观测周期内，不代表完整数据）
+3. arthas监听mall-search服务
+watch com.ecwid.consul.v1.health.HealthConsulClient getHealthServices | grep -B 4 mall-search-6c4d86fdb
+4. 在pod1 的 java容器内 kill 1 （模拟容器OOM）和 thanos-mesh注入OOM故障
+ 容器内日志
+2023-11-15 08:22:39.532 [] [SpringContextShutdownHook] INFO  n.d.b.g.server.serverfactory.GrpcServerLifecycle - Completed gRPC server shutdown
+2023-11-15 08:22:39.537 [] [SpringContextShutdownHook] INFO  o.s.boot.web.embedded.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests tocomplete
+2023-11-15 08:22:39.540 [] [tomcat-shutdown] INFO  o.s.boot.web.embedded.tomcat.GracefulShutdown - Graceful shutdown complete
+2023-11-15 08:22:39.568 [] [SpringContextShutdownHook] INFO  o.s.scheduling.concurrent.ThreadPoolTaskScheduler - Shutting down ExecutorService 'catalogWatchTaskScheduler'
+2023-11-15 08:22:41.621 [] [SpringContextShutdownHook] INFO  o.s.scheduling.concurrent.ThreadPoolTaskScheduler - Shutting down ExecutorService 'taskScheduler'
+2023-11-15 08:22:41.634 [] [SpringContextShutdownHook] INFO  o.s.scheduling.concurrent.ThreadPoolTaskExecutor - Shutting down ExecutorService 'commonThread'
+2023-11-15 08:22:41.787 [] [SpringContextShutdownHook] INFO  o.s.c.consul.serviceregistry.ConsulServiceRegistry - Deregistering servicewith consul: mall-search-service-8108
+2023-11-15 08:22:41.831 [] [SpringContextShutdownHook] INFO  c.b.dynamic.datasource.DynamicRoutingDataSource - dynamic-datasource startclosing ....
+2023-11-15 08:22:41.831 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_product_read - Shutdown initiated...
+2023-11-15 08:22:41.837 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_product_read - Shutdown completed.
+2023-11-15 08:22:41.837 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - shophub - Shutdown initiated...
+2023-11-15 08:22:41.839 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - shophub - Shutdown completed.
+2023-11-15 08:22:41.839 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_marketing_read - Shutdown initiated...
+2023-11-15 08:22:41.846 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_marketing_read - Shutdown completed.
+2023-11-15 08:22:41.846 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_search - Shutdown initiated...
+2023-11-15 08:22:41.850 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_search - Shutdown completed.
+2023-11-15 08:22:41.850 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_search_read - Shutdown initiated...
+2023-11-15 08:22:41.854 [] [SpringContextShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - mall_search_read - Shutdown completed.
+2023-11-15 08:22:41.855 [] [SpringContextShutdownHook] INFO  c.b.dynamic.datasource.DynamicRoutingDataSource - dynamic-datasource all closed success,bye
+   consul web上显示立刻下线 ，同时arthas上自动刷新mall-search信息5次后 (前两次两个节点 后三次一个节点)  response只剩下一个节点pod2  
+ts=2023-11-15 07:18:50; [cost=3.284347ms] result=@ArrayList[
+    @Object[][isEmpty=false;size=2],
+    @HealthConsulClient[com.ecwid.consul.v1.health.HealthConsulClient@165ec921],
+    @Response[Response{value=[HealthService{node=Node{id='43b819b9-e1c3-ce11-6f2a-8a67de143b5b', node='mall-search-6c4d86fdb-5c7mv', address='172.16.19.10', datacenter='qa', taggedAddresses={lan=172.16.19.10, lan_ipv4=172.16.19.10, wan=172.16.19.10, wan_ipv4=172.16.19.10}, meta={consul-network-segment=}, createIndex=25658127, modifyIndex=25658128}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.19.10', meta={}, port=8108, enableTagOverride=false, createIndex=25673219, modifyIndex=25673219}, checks=[Check{node='mall-search-6c4d86fdb-5c7mv', checkId='serfHealth', name='SerfHealth Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25658127, modifyIndex=25658127}, Check{node='mall-search-6c4d86fdb-5c7mv', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25673219, modifyIndex=25673220}]}, HealthService{node=Node{id='30db20b2-733a-bd1f-f158-c4e150d3ab1c', node='mall-search-6c4d86fdb-ktvmm', address='172.16.13.196', datacenter='qa', taggedAddresses={lan=172.16.13.196, lan_ipv4=172.16.13.196, wan=172.16.13.196, wan_ipv4=172.16.13.196}, meta={consul-network-segment=}, createIndex=25655533, modifyIndex=25655535}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.13.196',meta={}, port=8108, enableTagOverride=false, createIndex=25674075, modifyIndex=25674075}, checks=[Check{node='mall-search-6c4d86fdb-ktvmm', checkId='serfHealth', name='Serf Health Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25655533, modifyIndex=25655533}, Check{node='mall-search-6c4d86fdb-ktvmm', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25674075, modifyIndex=25674076}]}], consulIndex=25674076, consulKnownLeader=true, consulLastContact=0}],
+ts=2023-11-15 07:18:51; [cost=2.951051ms] result=@ArrayList[
+    @Object[][isEmpty=false;size=2],
+    @HealthConsulClient[com.ecwid.consul.v1.health.HealthConsulClient@165ec921],
+    @Response[Response{value=[HealthService{node=Node{id='43b819b9-e1c3-ce11-6f2a-8a67de143b5b', node='mall-search-6c4d86fdb-5c7mv', address='172.16.19.10', datacenter='qa', taggedAddresses={lan=172.16.19.10, lan_ipv4=172.16.19.10, wan=172.16.19.10, wan_ipv4=172.16.19.10}, meta={consul-network-segment=}, createIndex=25658127, modifyIndex=25658128}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.19.10', meta={}, port=8108, enableTagOverride=false, createIndex=25673219, modifyIndex=25673219}, checks=[Check{node='mall-search-6c4d86fdb-5c7mv', checkId='serfHealth', name='SerfHealth Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25658127, modifyIndex=25658127}, Check{node='mall-search-6c4d86fdb-5c7mv', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25673219, modifyIndex=25673220}]}, HealthService{node=Node{id='30db20b2-733a-bd1f-f158-c4e150d3ab1c', node='mall-search-6c4d86fdb-ktvmm', address='172.16.13.196', datacenter='qa', taggedAddresses={lan=172.16.13.196, lan_ipv4=172.16.13.196, wan=172.16.13.196, wan_ipv4=172.16.13.196}, meta={consul-network-segment=}, createIndex=25655533, modifyIndex=25655535}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.13.196',meta={}, port=8108, enableTagOverride=false, createIndex=25674075, modifyIndex=25674075}, checks=[Check{node='mall-search-6c4d86fdb-ktvmm', checkId='serfHealth', name='Serf Health Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25655533, modifyIndex=25655533}, Check{node='mall-search-6c4d86fdb-ktvmm', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25674075, modifyIndex=25674076}]}], consulIndex=25674076, consulKnownLeader=true, consulLastContact=0}],
+ts=2023-11-15 07:18:53; [cost=2.693187ms] result=@ArrayList[
+    @Object[][isEmpty=false;size=2],
+    @HealthConsulClient[com.ecwid.consul.v1.health.HealthConsulClient@165ec921],
+    @Response[Response{value=[HealthService{node=Node{id='30db20b2-733a-bd1f-f158-c4e150d3ab1c', node='mall-search-6c4d86fdb-ktvmm', address='172.16.13.196', datacenter='qa', taggedAddresses={lan=172.16.13.196, lan_ipv4=172.16.13.196, wan=172.16.13.196, wan_ipv4=172.16.13.196}, meta={consul-network-segment=}, createIndex=25655533, modifyIndex=25655535}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.13.196', meta={}, port=8108, enableTagOverride=false, createIndex=25674075, modifyIndex=25674075}, checks=[Check{node='mall-search-6c4d86fdb-ktvmm', checkId='serfHealth', name='Serf Health Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25655533, modifyIndex=25655533}, Check{node='mall-search-6c4d86fdb-ktvmm', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25674075, modifyIndex=25674076}]}], consulIndex=25674160, consulKnownLeader=true, consulLastContact=0}],
+ts=2023-11-15 07:18:53; [cost=9.20143ms] result=@ArrayList[
+    @Object[][isEmpty=false;size=2],
+    @HealthConsulClient[com.ecwid.consul.v1.health.HealthConsulClient@165ec921],
+    @Response[Response{value=[HealthService{node=Node{id='30db20b2-733a-bd1f-f158-c4e150d3ab1c', node='mall-search-6c4d86fdb-ktvmm', address='172.16.13.196', datacenter='qa', taggedAddresses={lan=172.16.13.196, lan_ipv4=172.16.13.196, wan=172.16.13.196, wan_ipv4=172.16.13.196}, meta={consul-network-segment=}, createIndex=25655533, modifyIndex=25655535}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.13.196', meta={}, port=8108, enableTagOverride=false, createIndex=25674075, modifyIndex=25674075}, checks=[Check{node='mall-search-6c4d86fdb-ktvmm', checkId='serfHealth', name='Serf Health Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25655533, modifyIndex=25655533}, Check{node='mall-search-6c4d86fdb-ktvmm', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25674075, modifyIndex=25674076}]}], consulIndex=25674160, consulKnownLeader=true, consulLastContact=0}],
+ts=2023-11-15 07:18:56; [cost=3.616353ms] result=@ArrayList[
+    @Object[][isEmpty=false;size=2],
+    @HealthConsulClient[com.ecwid.consul.v1.health.HealthConsulClient@165ec921],
+    @Response[Response{value=[HealthService{node=Node{id='30db20b2-733a-bd1f-f158-c4e150d3ab1c', node='mall-search-6c4d86fdb-ktvmm', address='172.16.13.196', datacenter='qa', taggedAddresses={lan=172.16.13.196, lan_ipv4=172.16.13.196, wan=172.16.13.196, wan_ipv4=172.16.13.196}, meta={consul-network-segment=}, createIndex=25655533, modifyIndex=25655535}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.13.196', meta={}, port=8108, enableTagOverride=false, createIndex=25674075, modifyIndex=25674075}, checks=[Check{node='mall-search-6c4d86fdb-ktvmm', checkId='serfHealth', name='Serf Health Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25655533, modifyIndex=25655533}, Check{node='mall-search-6c4d86fdb-ktvmm', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25674075, modifyIndex=25674076}]}], consulIndex=25674160, consulKnownLeader=true, consulLastContact=0}],
+5. 然后等待一段时间，容器重启上线，consul上可以观测到两个节点，web url检测到两个节点，此时arthas上刷新一次mall-search 但是只有一个节点pod2 ，此时 观测到pod1无流量接入
+ts=2023-11-15 07:20:22; [cost=5.195321ms] result=@ArrayList[
+    @Object[][isEmpty=false;size=2],
+    @HealthConsulClient[com.ecwid.consul.v1.health.HealthConsulClient@165ec921],
+    @Response[Response{value=[HealthService{node=Node{id='30db20b2-733a-bd1f-f158-c4e150d3ab1c', node='mall-search-6c4d86fdb-ktvmm', address='172.16.13.196', datacenter='qa', taggedAddresses={lan=172.16.13.196, lan_ipv4=172.16.13.196, wan=172.16.13.196, wan_ipv4=172.16.13.196}, meta={consul-network-segment=}, createIndex=25655533, modifyIndex=25655535}, service=Service{id='mall-search-service-8108', service='mall-search-service', tags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], address='172.16.13.196', meta={}, port=8108, enableTagOverride=false, createIndex=25674075, modifyIndex=25674075}, checks=[Check{node='mall-search-6c4d86fdb-ktvmm', checkId='serfHealth', name='Serf Health Status', status=PASSING, notes='', output='Agent alive and reachable', serviceId='', serviceName='', serviceTags=[], createIndex=25655533, modifyIndex=25655533}, Check{node='mall-search-6c4d86fdb-ktvmm', checkId='service:mall-search-service-8108', name='Service 'mall-search-service' check', status=PASSING, notes='', output='', serviceId='mall-search-service-8108', serviceName='mall-search-service', serviceTags=[metrics=true, metrics-path=/actuator/prometheus, env-qa, secure=false, gRPC.port=9108], createIndex=25674075, modifyIndex=25674076}]}], consulIndex=25674184, consulKnownLeader=true, consulLastContact=0}],
+6. 等待一段时间后（时间不固定） arthas上自动刷新mall-search信息，获取到两个节点信息，此时两个pod均有流量接入
+暂时无法在飞书文档外展示此内容
+总结：1. mall-search 和 common-server/mall-cms-service 的刷新机制不一样，可能是agent版本区别  没有更新的jar包了
+         2. 在应用中等待2分钟后重新注册，解决问题
+
